@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Role detection via claims, admins collection, or staff records
+    function isDesignatedAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.admin == true ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function getUserRole() {
+      return isDesignatedAdmin() ? 'admin' :
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+          : 'reporter');
+    }
+
+    function isAdmin() {
+      return isDesignatedAdmin() || (isSignedIn() && getUserRole() == 'admin');
+    }
+
+    function isEditor() {
+      return isAdmin() || (isSignedIn() && (
+        request.auth.token.role == 'editor' ||
+        request.auth.token.editor == true ||
+        getUserRole() == 'editor'
+      ));
+    }
+
+    function isValidArticle(data) {
+      return data.title is string && data.title.size() >= 3 && data.title.size() <= 300
+        && data.slug is string && data.slug.size() >= 3 && data.slug.size() <= 300
+        && data.content is string && data.content.size() >= 10 && data.content.size() <= 100000
+        && data.category is string && data.category.size() >= 2 && data.category.size() <= 50
+        && data.status in ['draft', 'published', 'archived']
+        && data.authorId is string && data.authorId.size() <= 128
+        && (!('tags' in data) || (data.tags is list && data.tags.size() <= 20));
+    }
+
+    function isValidVideo(data) {
+      return data.title is string && data.title.size() >= 3 && data.title.size() <= 300
+        && data.videoUrl is string && data.videoUrl.size() >= 5 && data.videoUrl.size() <= 1000
+        && data.storagePath is string && data.storagePath.size() >= 5 && data.storagePath.size() <= 500
+        && data.status in ['draft', 'published']
+        && data.authorId is string && data.authorId.size() <= 128;
+    }
+
+    // Articles collection
+    match /articles/{articleId} {
+      allow get: if isValidId(articleId) && (resource.data.status == 'published' || isSignedIn());
+      allow list: if resource.data.status == 'published' || isSignedIn();
+
+      // Create: authorId must match auth.uid. Only Editors/Admins can directly publish; Reporters must create as draft.
+      allow create: if isSignedIn()
+        && isValidId(articleId)
+        && request.resource.data.authorId == request.auth.uid
+        && isValidArticle(request.resource.data)
+        && (request.resource.data.status == 'draft' || isEditor() || isAdmin());
+
+      // Update: Admin/Editor can edit and publish. Reporter can only edit own article and cannot publish.
+      allow update: if isSignedIn()
+        && isValidId(articleId)
+        && isValidArticle(request.resource.data)
+        && (
+          isAdmin() ||
+          isEditor() ||
+          (
+            resource.data.authorId == request.auth.uid &&
+            (request.resource.data.status == 'draft' || resource.data.status == 'draft')
+          )
+        );
+
+      // Delete: Admin, Editor, or Reporter deleting their own unpublished draft
+      allow delete: if isSignedIn()
+        && isValidId(articleId)
+        && (
+          isAdmin() ||
+          isEditor() ||
+          (resource.data.authorId == request.auth.uid && resource.data.status == 'draft')
+        );
+    }
+
+    // Videos collection
+    match /videos/{videoId} {
+      allow get: if isValidId(videoId) && (resource.data.status == 'published' || isSignedIn());
+      allow list: if resource.data.status == 'published' || isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(videoId)
+        && request.resource.data.authorId == request.auth.uid
+        && isValidVideo(request.resource.data);
+
+      allow update: if isSignedIn()
+        && isValidId(videoId)
+        && (isAdmin() || isEditor() || resource.data.authorId == request.auth.uid)
+        && isValidVideo(request.resource.data);
+
+      allow delete: if isSignedIn()
+        && isValidId(videoId)
+        && (isAdmin() || isEditor() || resource.data.authorId == request.auth.uid);
+    }
+
+    // Categories collection
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && (isAdmin() || isEditor());
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // Settings & Branding
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (isAdmin() || isEditor());
+    }
+
+    // Staff Users: No user can self-escalate role
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      // New users register with default reporter role unless pre-registered as admin
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && (request.resource.data.role == 'reporter' || isDesignatedAdmin());
+
+      // Only Admins can modify role field. Normal user can only modify non-role profile fields.
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (
+          request.auth.uid == userId &&
+          request.resource.data.role == resource.data.role
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Admins registry
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

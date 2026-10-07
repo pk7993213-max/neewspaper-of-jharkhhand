@@ -1,0 +1,61 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default deny all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isStaff() {
+      return isSignedIn();
+    }
+
+    function isEditorOrAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.role in ['admin', 'editor']) ||
+        request.auth.token.admin == true ||
+        request.auth.token.editor == true
+      );
+    }
+
+    // Public read for news imagery
+    match /news-images/{year}/{month}/{fileName} {
+      allow read: if true;
+      allow create: if isStaff()
+        && request.resource.size <= 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if isStaff();
+    }
+
+    // Public read for video dispatches, validated upload for staff up to 100MB
+    match /news-videos/{year}/{month}/{fileName} {
+      allow read: if true;
+      allow create: if isStaff()
+        && request.resource.size <= 100 * 1024 * 1024
+        && request.resource.contentType.matches('video/.*');
+      allow update, delete: if isStaff();
+    }
+
+    // Thumbnails & posters
+    match /thumbnails/{year}/{month}/{fileName} {
+      allow read: if true;
+      allow create: if isStaff()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if isStaff();
+    }
+
+    // Branding & masthead assets
+    match /branding/{fileName} {
+      allow read: if true;
+      allow write: if isStaff()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

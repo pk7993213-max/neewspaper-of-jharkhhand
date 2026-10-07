@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "Article": {
+      "title": "Article",
+      "description": "News article entity published or drafted in the newspaper CMS.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 3, "maxLength": 300, "description": "Headline of the article" },
+        "slug": { "type": "string", "minLength": 3, "maxLength": 300, "pattern": "^[a-z0-9-]+$", "description": "SEO friendly URL slug" },
+        "excerpt": { "type": "string", "maxLength": 1000, "description": "Short summary or lead paragraph" },
+        "content": { "type": "string", "minLength": 10, "maxLength": 100000, "description": "Full body text or markdown of the article" },
+        "category": { "type": "string", "minLength": 2, "maxLength": 50, "description": "Main category name or slug" },
+        "subcategory": { "type": "string", "maxLength": 50, "description": "Optional subcategory like city name" },
+        "authorId": { "type": "string", "maxLength": 128, "description": "UID of the authoring staff member" },
+        "authorName": { "type": "string", "maxLength": 100, "description": "Display name of the author" },
+        "authorEmail": { "type": "string", "maxLength": 150, "description": "Email of the author" },
+        "featuredImage": { "type": "string", "maxLength": 1000, "description": "URL to the primary headline cover image" },
+        "featuredImageCaption": { "type": "string", "maxLength": 300, "description": "Caption or photo credit for featured image" },
+        "images": { "type": "array", "description": "Optional list of additional gallery image URLs" },
+        "videoId": { "type": "string", "maxLength": 128, "description": "Optional Firestore video doc ID" },
+        "videoUrl": { "type": "string", "maxLength": 1000, "description": "Optional Firebase Storage URL of attached video" },
+        "tags": { "type": "array", "description": "Tags list for discovery and SEO" },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"], "description": "Workflow publication state" },
+        "readingTime": { "type": "number", "description": "Estimated reading duration in minutes" },
+        "isBreaking": { "type": "boolean", "description": "Flag for breaking news banner" },
+        "isFeatured": { "type": "boolean", "description": "Flag for hero or top story display" },
+        "views": { "type": "number", "description": "Total view count" },
+        "publishedAt": { "type": "string", "maxLength": 50, "description": "Date string or ISO timestamp of publication" },
+        "createdAt": { "type": "string", "maxLength": 50, "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "maxLength": 50, "description": "Last updated timestamp" }
+      },
+      "required": ["title", "slug", "content", "category", "authorId", "authorName", "status"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Editorial video uploaded to Firebase Storage and cataloged in Firestore.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 3, "maxLength": 300, "description": "Video headline" },
+        "description": { "type": "string", "maxLength": 2000, "description": "Video description or summary" },
+        "videoUrl": { "type": "string", "minLength": 5, "maxLength": 1000, "description": "Direct Firebase Storage public download URL" },
+        "storagePath": { "type": "string", "minLength": 5, "maxLength": 500, "description": "Path in Firebase Storage bucket" },
+        "fileName": { "type": "string", "maxLength": 255, "description": "Original uploaded file name" },
+        "fileSize": { "type": "number", "description": "Size in bytes" },
+        "contentType": { "type": "string", "maxLength": 100, "description": "MIME type e.g. video/mp4" },
+        "category": { "type": "string", "maxLength": 50, "description": "Associated category" },
+        "status": { "type": "string", "enum": ["draft", "published"], "description": "Publication status" },
+        "authorId": { "type": "string", "maxLength": 128, "description": "Uploader UID" },
+        "authorName": { "type": "string", "maxLength": 100, "description": "Uploader name" },
+        "views": { "type": "number", "description": "View counter" },
+        "createdAt": { "type": "string", "maxLength": 50, "description": "Upload timestamp" },
+        "updatedAt": { "type": "string", "maxLength": 50, "description": "Update timestamp" }
+      },
+      "required": ["title", "videoUrl", "storagePath", "status", "authorId"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Editorial section or beat in the newspaper.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 60, "description": "Section display name" },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 60, "pattern": "^[a-z0-9-]+$", "description": "URL slug" },
+        "description": { "type": "string", "maxLength": 300, "description": "Section description" },
+        "order": { "type": "number", "description": "Navbar order sequence" }
+      },
+      "required": ["name", "slug", "order"]
+    },
+    "User": {
+      "title": "User",
+      "description": "CMS staff member profile and role assignment.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150, "description": "Staff email" },
+        "displayName": { "type": "string", "maxLength": 100, "description": "Staff full name" },
+        "role": { "type": "string", "enum": ["admin", "editor", "reporter"], "description": "Editorial access tier" },
+        "photoURL": { "type": "string", "maxLength": 1000, "description": "Staff avatar" },
+        "createdAt": { "type": "string", "maxLength": 50, "description": "Joined timestamp" }
+      },
+      "required": ["email", "role"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Designated root administrator document.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150, "description": "Admin email" },
+        "role": { "type": "string", "description": "admin" },
+        "addedAt": { "type": "string", "maxLength": 50, "description": "Timestamp" }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/articles/{articleId}": {
+      "schema": { "$ref": "#/entities/Article" },
+      "description": "Stores all news articles across categories and states."
+    },
+    "/videos/{videoId}": {
+      "schema": { "$ref": "#/entities/Video" },
+      "description": "Stores published and draft editorial videos."
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Stores available newspaper categories and navigation hierarchy."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores staff profiles and authorization roles."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Stores explicit admin user IDs for trusted security rule checks."
+    }
+  }
+}

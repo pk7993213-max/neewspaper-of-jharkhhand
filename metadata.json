@@ -1,0 +1,6 @@
+{
+  "name": "The Bharat Chronicle - Digital Newspaper & Editorial CMS",
+  "description": "A high-performance digital newspaper publishing platform and secure editorial newsroom CMS powered by Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
